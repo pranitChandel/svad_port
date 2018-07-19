@@ -4,9 +4,11 @@ const gravatar = require("gravatar");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const key = require("../../config/keys");
+const passport = require("passport");
 
 //load Input Validation
 const validateRegisterInput = require("../../validation/register");
+const validateLoginInput = require("../../validation/login");
 
 //load user Model
 const User = require("../../models/Users");
@@ -62,6 +64,12 @@ router.post("/register", (req, res) => {
 //@desc  login User/Returning JWT
 //@access Public
 router.post("/login", (req, res) => {
+  const { errors, isValid } = validateLoginInput(req.body);
+
+  //Check Validation
+  if (!isValid) {
+    return res.status(400).json(errors);
+  }
   const email = req.body.email;
   const password = req.body.password;
 
@@ -69,7 +77,8 @@ router.post("/login", (req, res) => {
   User.findOne({ email }).then(user => {
     //check the user
     if (!user) {
-      return res.status(404).json({ email: "User not found" });
+      errors.email = "User not found";
+      return res.status(404).json(errors);
     }
 
     //Check password
@@ -81,7 +90,7 @@ router.post("/login", (req, res) => {
         //Sign token
         jwt.sign(
           payload,
-          key.secretorkey,
+          key.secretOrKey,
           { expiresIn: 3600 },
           (err, token) => {
             res.json({
@@ -91,9 +100,25 @@ router.post("/login", (req, res) => {
           }
         );
       } else {
-        return res.status(400).json({ password: "Password incorrect" });
+        errors.password = "Password incorrect";
+        return res.status(400).json(errors);
       }
     });
   });
 });
+
+//@route GET api/users/current
+//@desc  Return current user
+//@access private
+router.get(
+  "/current",
+  passport.authenticate("jwt", { session: false }),
+  (req, res) => {
+    res.json({
+      id: req.user.id,
+      name: req.user.name,
+      email: req.user.email
+    });
+  }
+);
 module.exports = router;
